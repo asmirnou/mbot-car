@@ -16,6 +16,7 @@ headlight_time_sec = 30
 _distance: float = None
 _light: float = None
 _line_follow: float = None
+_button: float = None
 _run = True
 
 
@@ -32,6 +33,11 @@ def on_distance(value):
 def on_light(value):
     global _light
     _light = value
+
+
+def on_button(value):
+    global _button
+    _button = value
 
 
 def on_line_follow(value):
@@ -62,20 +68,35 @@ def loop(bot, clock):
             time.sleep(1)
             continue
 
-        bot.requestUltrasonicSensor(10, 3, on_distance)
-        # bot.requestLineFollower(20, 2, on_line_follow)
+        #bot.requestLineFollower(10, 2, on_line_follow)
+        bot.requestUltrasonicSensor(20, 3, on_distance)
         bot.requestLightOnBoard(30, on_light)
+        bot.requestButtonOnBoard(40, on_button)
 
-        clock.tick(60)
+        clock.tick(20)
 
+        horn = False
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 _run = False
+            elif event.type == pygame.JOYBUTTONDOWN:
+                horn = True
 
-        keys = pygame.key.get_pressed()
+        joystick_count = pygame.joystick.get_count()
+        if joystick_count > 0:
+            joystick = pygame.joystick.Joystick(joystick_count - 1)
+            joystick.init()
+            try:
+                axis1 = joystick.get_axis(0)
+                axis2 = joystick.get_axis(1)
+            finally:
+                joystick.quit()
+        else:
+            axis1 = 0
+            axis2 = 0
 
-        direction = keys[pygame.K_UP] - keys[pygame.K_DOWN]
-        steering = keys[pygame.K_LEFT] - keys[pygame.K_RIGHT]
+        steering = -axis1
+        direction = -axis2
 
         speed = obstacle_avoidance(direction, _distance, distance_min, distance_max, velocity_min, velocity_max)
 
@@ -84,8 +105,6 @@ def loop(bot, clock):
 
         headlights = True if _light is not None and _light < light_threshold \
                              or (old_headlights and time.time() - headlights_time < headlight_time_sec) else False
-
-        horn = keys[pygame.K_SPACE] == 1
 
         if old_left_speed != left_speed or old_right_speed != right_speed:
             bot.doMove(left_speed, right_speed)
@@ -100,6 +119,9 @@ def loop(bot, clock):
         if horn and time.time() - horn_time >= 0.500:
             bot.doBuzzer(123, 250)
             horn_time = time.time()
+
+        if _button == 0:
+            _run = False
 
         old_left_speed = left_speed
         old_right_speed = right_speed
@@ -124,8 +146,7 @@ def main():
 
     pygame.init()
     try:
-        pygame.display.set_caption('Makeblock mBot')
-        pygame.display.set_mode((300, 300))
+        pygame.joystick.init()
 
         clock = pygame.time.Clock()
 

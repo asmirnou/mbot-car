@@ -136,7 +136,7 @@ class mBot():
                     sleep(0.01)
                 else:
                     sleep(0.5)
-        except OSError:
+        except Exception:
             if self.__exiting:
                 pass
             else:
@@ -252,8 +252,9 @@ class mBot():
 
     def _responseValue(self, extID, value):
         key = "callback_" + str(extID)
-        callback = self._selectors.pop(key)
-        callback(value)
+        if key in self._selectors:
+            callback = self._selectors.pop(key)
+            callback(value)
 
     def _doCallback(self, extID, callback):
         key = "callback_" + str(extID)
