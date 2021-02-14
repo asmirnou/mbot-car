@@ -19,5 +19,5 @@ sudo rfcomm bind 0 00:1B:10:10:19:D4 1
 ```
 
 ```bash
-python car.py -p /dev/rfcomm0
+export SDL_VIDEODRIVER=dummy && python car.py -p /dev/rfcomm0
 ```

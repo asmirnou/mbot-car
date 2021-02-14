@@ -8,14 +8,14 @@ import serial
 import struct
 import threading
 import hid
-from time import sleep
+import traceback
+from time import sleep, time
 from multiprocessing import Manager
 
 
 class mSerial():
     def __init__(self, port):
         self._port = port
-        sleep(0)
 
     def start(self):
         self._ser = serial.Serial(self._port, 115200)
@@ -39,7 +39,6 @@ class mSerial():
 
 class mHID():
     def __init__(self, manager):
-        sleep(0)
         self._manager = manager
 
     def start(self):
@@ -136,14 +135,18 @@ class mBot():
                     sleep(0.01)
                 else:
                     sleep(0.5)
-        except Exception:
+        except OSError:
             if self.__exiting:
                 pass
             else:
                 raise
 
     def _writePackage(self, pack):
-        self._device.writePackage(pack)
+        try:
+            self._device.writePackage(pack)
+        except OSError:
+            traceback.print_exc()
+            self.close()
 
     def doRGBLed(self, port, slot, index, red, green, blue):
         self._writePackage(bytearray([0xff, 0x55, 0x9, 0x0, 0x2, 0x8, port, slot, index, red, green, blue]))
@@ -252,17 +255,20 @@ class mBot():
 
     def _responseValue(self, extID, value):
         key = "callback_" + str(extID)
-        if key in self._selectors:
-            callback = self._selectors.pop(key)
+        try:
+            callback, _ = self._selectors.pop(key)
             callback(value)
+        except KeyError:
+            pass
 
     def _doCallback(self, extID, callback):
         key = "callback_" + str(extID)
-        if key not in self._selectors:
-            self._selectors[key] = callback
+        try:
+            callback, t = self._selectors[key]
+            return time() - t > 1
+        except KeyError:
+            self._selectors[key] = callback, time()
             return True
-        else:
-            return False
 
     def _float2bytes(self, fval):
         val = struct.pack("f", fval)
