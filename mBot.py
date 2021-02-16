@@ -106,9 +106,9 @@ class mBot():
             self._th = threading.Thread(target=self._onRead, args=(self._onParse,))
             self._th.start()
             return True
-        except Exception as e:
+        except OSError:
             if silent:
-                print(e)
+                traceback.print_exc()
                 return False
             else:
                 raise

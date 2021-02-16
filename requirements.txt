@@ -1,3 +1,4 @@
 hidapi
 pyserial
 pygame
+smbus
