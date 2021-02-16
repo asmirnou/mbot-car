@@ -3,9 +3,14 @@ import threading
 import pygame
 import time
 import signal
+import json
 import mBot
 import INA219
+from os import getpid
+from platform import node
 from functools import partial
+from werkzeug.serving import make_server
+from werkzeug.wrappers import Response
 
 # Constants
 velocity_max = 150
@@ -139,13 +144,15 @@ def _loop(bot, clock):
 
 
 def _parse_commandline_arguments():
-    parser = argparse.ArgumentParser(description='Makeblock mBot controller')
+    parser = argparse.ArgumentParser(description='Makeblock mBot')
 
-    parser.add_argument("-p", "--port", dest="serial_port", required=True,
+    parser.add_argument("-sp", "--serial-port", dest="serial_port", required=True,
                         help="Serial port for connecting to the robot")
+    parser.add_argument("-hp", "--http-port", dest="http_port", required=False, default=8060,
+                        help="HTTP port for reading metrics")
 
     args = parser.parse_args()
-    return args
+    return parser, args
 
 
 def _install_signal_handler():
@@ -162,7 +169,7 @@ def _power_monitor():
 
     ina219 = INA219.INA219(addr=0x42)
 
-    while not _stop_main_event.is_set():
+    while not _stop_main_event.wait(2):
         _bus_voltage = ina219.getBusVoltage_V()  # voltage on V- (load side)
         _shunt_voltage = ina219.getShuntVoltage_mV() / 1000  # voltage between V+ and V- across the shunt
         _current = ina219.getCurrent_mA()  # current in mA
@@ -173,8 +180,44 @@ def _power_monitor():
         _battery = p
 
 
+def _dispatch_request(environ, start_response):
+    sensors = dict()
+    if _distance is not None:
+        sensors['Distance'] = "{:.1f} cm".format(_distance)
+    if _light is not None:
+        sensors['Light'] = "{:.0f}".format(_light)
+
+    battery = dict()
+    if _battery is not None:
+        battery['PSU Voltage'] = "{:.3f} V".format(_bus_voltage + _shunt_voltage)
+        battery['Shunt Voltage'] = "{:.6f} V".format(_shunt_voltage)
+        battery['Load Voltage'] = "{:.3f} V".format(_bus_voltage)
+        battery['Current'] = "{:.6f} A".format(_current / 1000)
+        battery['Power'] = "{:.3f} W".format(_power)
+        battery['Percent'] = "{:.1f}%".format(_battery)
+
+    metrics = dict()
+    metrics['Sensors'] = sensors
+    metrics['Battery'] = battery
+    response = Response(json.dumps(metrics, indent=4), mimetype='application/json')
+    return response(environ, start_response)
+
+
+def _http_serve(port):
+    server = make_server('0.0.0.0', port, _dispatch_request, threaded=True)
+
+    server_thread = threading.Thread(target=server.serve_forever)
+    server_thread.start()
+    return server, server_thread
+
+
+def _stop_http(server, server_thread):
+    server.shutdown()
+    server_thread.join(30)
+
+
 def main():
-    args = _parse_commandline_arguments()
+    parser, args = _parse_commandline_arguments()
 
     pygame.init()
     try:
@@ -186,12 +229,18 @@ def main():
         try:
             threading.Thread(target=_power_monitor).start()
 
-            bot = mBot.mBot()
-            bot.createSerial(args.serial_port)
+            server, server_thread = _http_serve(args.http_port)
             try:
-                _loop(bot, clock)
+                bot = mBot.mBot()
+                bot.createSerial(args.serial_port)
+                try:
+                    print("Starting {} on {}:{} with PID {}".format(parser.description, node(), server.port, getpid()))
+                    _loop(bot, clock)
+                    print("Stopping {}".format(parser.description))
+                finally:
+                    bot.close()
             finally:
-                bot.close()
+                _stop_http(server, server_thread)
         finally:
             _stop_main_event.set()
     finally:

@@ -1,4 +1,5 @@
-hidapi
-pyserial
 pygame
+pyserial
+hidapi
 smbus
+werkzeug
