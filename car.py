@@ -1,5 +1,6 @@
 import argparse
 import threading
+import subprocess
 import pygame
 import time
 import signal
@@ -68,10 +69,11 @@ def _obstacle_avoidance(direction, distance, distance_min, distance_max, velocit
              (velocity_max - velocity_min) / (distance_max - distance_min)
 
 
-def _loop(bot, clock):
+def _loop(bot, clock, button_cmd):
     old_left_speed = 0
     old_right_speed = 0
     old_headlights = False
+    old_button = None
     horn_time = 0
     headlights_time = 0
     curve = curve_max
@@ -107,6 +109,7 @@ def _loop(bot, clock):
             axis1 = 0
             axis2 = 0
 
+        # Move if joystick axes are moving
         steering = -axis1
         direction = -axis2
 
@@ -115,11 +118,12 @@ def _loop(bot, clock):
         left_speed = round(direction * speed * (1 - steering / curve))
         right_speed = round(direction * speed * (1 + steering / curve))
 
-        headlights = True if _light is not None and _light < light_threshold \
-                             or (old_headlights and time.time() - headlights_time < headlight_time_sec) else False
-
         if old_left_speed != left_speed or old_right_speed != right_speed:
             bot.doMove(left_speed, right_speed)
+
+        # Turn the headlights on in the evening
+        headlights = True if _light is not None and _light < light_threshold \
+                             or (old_headlights and time.time() - headlights_time < headlight_time_sec) else False
 
         if old_headlights != headlights:
             if headlights:
@@ -128,16 +132,25 @@ def _loop(bot, clock):
                 bot.doRGBLedOnBoard(0, 0, 0, 0)
             headlights_time = time.time()
 
+        # Play horn if any joystick button is pressed
         if horn and time.time() - horn_time >= 0.500:
             bot.doBuzzer(123, 250)
             horn_time = time.time()
 
-        if _button == 0:
-            _stop_main_event.set()
+        # Beep if battery is low and needs charge
+        if _battery is not None and _battery < 15 and time.time() - horn_time >= 60:
+            bot.doBuzzer(1400, 250)
+            horn_time = time.time()
+
+        # Run an arbitrary command when teh onboard button is pressed
+        button = True if _button == 0 else False if _button == 1023 else None
+        if button and button != old_button:
+            subprocess.run(button_cmd)
 
         old_left_speed = left_speed
         old_right_speed = right_speed
         old_headlights = headlights
+        old_button = button
 
     bot.doMove(0, 0)
     bot.doRGBLedOnBoard(0, 0, 0, 0)
@@ -150,6 +163,8 @@ def _parse_commandline_arguments():
                         help="Serial port for connecting to the robot")
     parser.add_argument("-hp", "--http-port", dest="http_port", required=False, default=8060,
                         help="HTTP port for reading metrics")
+    parser.add_argument("-bc", "--button-cmd", nargs='+', dest="button_cmd", required=False,
+                        help="A sequence of program arguments to run when the onboard button is pressed")
 
     args = parser.parse_args()
     return parser, args
@@ -235,7 +250,7 @@ def main():
                 bot.createSerial(args.serial_port)
                 try:
                     print("Starting {} on {}:{} with PID {}".format(parser.description, node(), server.port, getpid()))
-                    _loop(bot, clock)
+                    _loop(bot, clock, args.button_cmd)
                     print("Stopping {}".format(parser.description))
                 finally:
                     bot.close()
