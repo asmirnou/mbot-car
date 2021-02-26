@@ -1,0 +1,11 @@
+[Unit]
+Description=mBot Car
+[Service]
+Type=simple
+User=%i
+Restart=always
+WorkingDirectory=/home/pi/mbot-car
+Environment="SDL_VIDEODRIVER=dummy"
+ExecStart=/home/pi/mbot-car/venv/bin/python car.py -sp /dev/rfcomm0 -bc sudo shutdown now
+[Install]
+WantedBy=multi-user.target

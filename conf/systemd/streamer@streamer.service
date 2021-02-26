@@ -1,0 +1,12 @@
+[Unit]
+Description=MJPEG Streamer
+After=network-online.target
+[Service]
+Type=simple
+User=%i
+Restart=always
+WorkingDirectory=/home/pi/mjpg-streamer/mjpg-streamer-experimental
+ExecStart=/home/pi/mjpg-streamer/mjpg-streamer-experimental/mjpg_streamer -o "output_http.so -w ./www -p 8090" -i "input_raspicam.so"
+Environment="LD_LIBRARY_PATH=/home/pi/mjpg-streamer/mjpg-streamer-experimental"
+[Install]
+WantedBy=multi-user.target

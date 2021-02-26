@@ -1,0 +1,51 @@
+server {
+	listen 80 default_server;
+	listen [::]:80 default_server;
+
+	root /var/www/html;
+
+	# Add index.php to the list if you are using PHP
+	index index.html;
+
+	server_name _;
+
+	location / {
+		# First attempt to serve request as file, then
+		# as directory, then fall back to displaying a 404.
+		try_files $uri $uri/ =404;
+	}
+
+    location /sensors/ {
+        proxy_pass http://127.0.0.1:8060/;
+    }
+
+	location /gamepads/ {
+		proxy_pass http://127.0.0.1:8080/;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+
+        # WebSocket support
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $http_connection;
+
+        sub_filter_once off;
+        sub_filter_types application/javascript;
+        sub_filter '<head>' '<head>\n\t\t<base href="/gamepads/">';
+        sub_filter 'src="/' 'src="./';
+        sub_filter 'href="/' 'href="./';
+        sub_filter 'socket = io();' 'socket = io({\n        path:"/gamepads/socket.io"\n    });';
+        sub_filter 'KEYBOARDS_PATH = \'/images/keyboards/\'' 'KEYBOARDS_PATH = \'/gamepads/images/keyboards/\'';
+	}
+
+    location /camera/ {
+        proxy_pass http://127.0.0.1:8090/;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+
+        sub_filter_once off;
+        sub_filter '<head>' '<head>\n\t\t<base href="/camera/">';
+    }
+}

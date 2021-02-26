@@ -1,0 +1,10 @@
+[Unit]
+Description=Virtual Gamepads
+[Service]
+Type=simple
+Restart=always
+WorkingDirectory=/home/pi/node-virtual-gamepads
+ExecStart=node main.js
+[Install]
+WantedBy=multi-user.target
+Alias=virtual-gamepads.service

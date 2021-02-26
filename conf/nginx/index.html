@@ -1,0 +1,192 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+        "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <title>Makeblock mBot</title>
+    <style type="text/css">
+        body {
+            margin: 0;
+            padding: 0;
+        }
+
+        .imgbox {
+            display: grid;
+            height: 100%;
+            z-index: 1;
+        }
+
+        .center-fit {
+            width: 100%;
+            max-width: 100%;
+            max-height: 100%;
+            margin: auto;
+            object-fit: cover;
+        }
+
+        .textbox {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            z-index: 2147483647;
+        }
+
+        .text {
+            font-size: 1.5em;
+            color: white;
+            text-shadow: 1px 1px 1px black;
+        }
+
+        .topleft {
+            position: absolute;
+            top: 8px;
+            left: 16px;
+        }
+
+        .topright {
+            position: absolute;
+            top: 8px;
+            right: 16px;
+        }
+
+        .bottomright {
+            position: absolute;
+            bottom: 8px;
+            right: 16px;
+        }
+
+        .bottomleft {
+            position: absolute;
+            bottom: 8px;
+            left: 16px;
+        }
+    </style>
+</head>
+<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.4/jquery.min.js"></script>
+<script type="text/javascript">
+
+    /* Copyright (C) 2007 Richard Atterer, richardĀ©atterer.net
+       This program is free software; you can redistribute it and/or modify it
+       under the terms of the GNU General Public License, version 2. See the file
+       COPYING for details. */
+
+    var imageNr = 0; // Serial number of current image
+    var finished = new Array(); // References to img objects which have finished downloading
+    var paused = false;
+
+    function createImageLayer() {
+        var img = new Image();
+        img.style.position = "absolute";
+        img.style.zIndex = -1;
+        img.className = "center-fit";
+        img.onload = imageOnload;
+        img.onclick = imageOnclick;
+        img.src = "./camera/?action=snapshot&n=" + (++imageNr);
+        var webcam = document.getElementById("webcam");
+        webcam.insertBefore(img, webcam.firstChild);
+    }
+
+    // Two layers are always present (except at the very beginning), to avoid flicker
+    function imageOnload() {
+        this.style.zIndex = imageNr; // Image finished, bring to front!
+        while (1 < finished.length) {
+            var del = finished.shift(); // Delete old image(s) from document
+            del.parentNode.removeChild(del);
+        }
+        finished.push(this);
+        if (!paused) createImageLayer();
+    }
+
+    function imageOnclick() { // Clicking on the image will pause the stream
+        paused = !paused;
+        if (!paused) createImageLayer();
+    }
+
+    /* Copyright (C) 2021 Alexander Smirnov
+       This program is free software; you can redistribute it and/or modify it
+       under the terms of the MIT License. */
+
+    function loadSensors() {
+        $.getJSON("./sensors/", function (json) {
+            for (var key1 in json) {
+                group = json[key1]
+                for (var key2 in group) {
+                    document.getElementById(key2).innerHTML = group[key2];
+                }
+            }
+        });
+    }
+
+    function pageOnLoad() {
+        createImageLayer();
+
+        setInterval(loadSensors, 500);
+    }
+
+</script>
+<body onload="pageOnLoad();">
+
+<div id="webcam" class="imgbox">
+    <noscript><img class="center-fit" src="./camera/?action=snapshot"/></noscript>
+</div>
+
+<div id="seonsors" class="textbox">
+    <div class="topleft text">
+        <table>
+            <tbody>
+            <tr>
+                <td align="right">Distance:</td>
+                <td id="Distance"></td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="topright text">
+        <table>
+            <tbody>
+            <tr>
+                <td align="right">Light:</td>
+                <td id="Light"></td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="bottomright text">
+        <table>
+            <tbody>
+            <tr>
+                <td align="right">Load Voltage:</td>
+                <td id="Load Voltage"></td>
+            </tr>
+            <tr>
+                <td align="right">PSU Voltage:</td>
+                <td id="PSU Voltage"></td>
+            </tr>
+            <tr>
+                <td align="right">Shunt Voltage:</td>
+                <td id="Shunt Voltage"></td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="bottomleft text">
+        <table>
+            <tbody>
+            <tr>
+                <td align="right">Battery:</td>
+                <td id="Percent"></td>
+            </tr>
+            <tr>
+                <td align="right">Power:</td>
+                <td id="Power"></td>
+            </tr>
+            <tr>
+                <td align="right">Current:</td>
+                <td id="Current"></td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+</body>
+</html>
